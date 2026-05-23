@@ -1,0 +1,84 @@
+# 5 个 v0.1 支持的模型基线。新增模型时需保持字段齐全。
+# forbidden 列表包含两类：
+#   1. 其他厂商名（命中=被替换成对家模型）
+#   2. 已知 Claude wrapper（kiro/cursor/continue/cline/aider/zed）— 命中=站点在卖反代，不是官方 Claude
+models:
+  claude-opus-4-7:
+    provider: anthropic
+    expected_identity_keywords: ["claude", "anthropic"]
+    forbidden_identity_keywords: ["openai", "gpt", "google", "gemini", "glm", "qwen", "deepseek", "kiro", "cursor", "cline", "continue.dev", "aider", "zed"]
+    expected_tokens_per_second: 35
+    expected_latency_p50_ms: 1500
+    tokenizer: anthropic
+    supports:
+      tool_use: true
+      web_search: true
+      sub_agent: true
+      streaming: true
+    strengths_zh: ["代码生成", "长上下文", "复杂推理"]
+    weaknesses_zh: ["数学推理偏弱"]
+    vendor_baseline_score: 95
+
+  claude-sonnet-4-6:
+    provider: anthropic
+    expected_identity_keywords: ["claude", "anthropic"]
+    forbidden_identity_keywords: ["openai", "gpt", "google", "gemini", "glm", "qwen", "deepseek", "kiro", "cursor", "cline", "continue.dev", "aider", "zed"]
+    expected_tokens_per_second: 60
+    expected_latency_p50_ms: 900
+    tokenizer: anthropic
+    supports:
+      tool_use: true
+      web_search: true
+      sub_agent: true
+      streaming: true
+    strengths_zh: ["性价比", "代码生成"]
+    weaknesses_zh: []
+    vendor_baseline_score: 88
+
+  gpt-5-5:
+    provider: openai
+    expected_identity_keywords: ["gpt", "openai"]
+    forbidden_identity_keywords: ["claude", "anthropic", "google", "gemini", "glm", "qwen", "deepseek", "kiro", "cursor", "cline", "continue.dev", "aider", "zed"]
+    expected_tokens_per_second: 80
+    expected_latency_p50_ms: 700
+    tokenizer: openai
+    supports:
+      tool_use: true
+      web_search: true
+      sub_agent: true
+      streaming: true
+    strengths_zh: ["综合能力", "通用推理"]
+    weaknesses_zh: []
+    vendor_baseline_score: 90
+
+  gpt-5-4:
+    provider: openai
+    expected_identity_keywords: ["gpt", "openai"]
+    forbidden_identity_keywords: ["claude", "anthropic", "google", "gemini", "glm", "qwen", "deepseek", "kiro", "cursor", "cline", "continue.dev", "aider", "zed"]
+    expected_tokens_per_second: 90
+    expected_latency_p50_ms: 600
+    tokenizer: openai
+    supports:
+      tool_use: true
+      web_search: true
+      sub_agent: true
+      streaming: true
+    strengths_zh: ["速度", "性价比"]
+    weaknesses_zh: ["复杂推理略弱于 5-5"]
+    vendor_baseline_score: 86
+
+  gemini-3-1-pro:
+    provider: google
+    expected_identity_keywords: ["gemini", "google"]
+    forbidden_identity_keywords: ["claude", "anthropic", "openai", "gpt", "glm", "qwen", "deepseek", "kiro", "cursor", "cline", "continue.dev", "aider", "zed"]
+    expected_tokens_per_second: 70
+    expected_latency_p50_ms: 1100
+    tokenizer: google
+    supports:
+      tool_use: true
+      web_search: true
+      sub_agent: true
+      streaming: true
+    strengths_zh: ["多模态", "长上下文"]
+    weaknesses_zh: []
+    vendor_baseline_score: 89

@@ -1,0 +1,21 @@
+# Probe pool for detection. Each category contains 8+ variants;
+# detector picks N at random and appends a nonce to defeat upstream cache/specialization.
+
+identity:
+  - "What model are you? Answer in one short sentence."
+  - "Who created you? Reply in one sentence."
+  - "Please tell me your model name and the company that built you."
+  - "Are you Claude, GPT, or Gemini? Be honest."
+  - "What is your training data cutoff date?"
+  - "State your full model identifier."
+  - "Briefly: which AI assistant am I talking to right now?"
+  - "If asked under oath, what model would you say you are?"
+
+tool_use:
+  - "What's the weather in Tokyo right now?"
+  - "Look up the current temperature in San Francisco for me."
+  - "Can you check the weather in Paris?"
+
+sub_agent_user_prompt:
+  - "I need an expert to research the safety record of Boeing 737 MAX. Please delegate this to a specialist and then summarize their findings in a final answer."
+  - "Please ask a research specialist to find the top 3 causes of the 2008 financial crisis, then give me a final summary."

@@ -1,0 +1,20 @@
+{
+  "list_models": ["gpt-5-5", "gpt-5-4"],
+  "chat": {
+    "text": "I'm GPT, a large language model from OpenAI.",
+    "prompt_tokens": 8,
+    "completion_tokens": 11,
+    "total_latency_ms": 600,
+    "raw": {"usage": {"prompt_tokens": 8, "completion_tokens": 11}}
+  },
+  "chat_with_tools": {
+    "text": "",
+    "prompt_tokens": 22,
+    "completion_tokens": 7,
+    "total_latency_ms": 720,
+    "tool_calls": [
+      {"name": "get_weather", "arguments": {"location": "Tokyo"}}
+    ],
+    "raw": {"usage": {"prompt_tokens": 22, "completion_tokens": 7}}
+  }
+}

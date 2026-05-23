@@ -1,0 +1,20 @@
+{
+  "list_models": ["claude-opus-4-7", "claude-sonnet-4-6"],
+  "chat": {
+    "text": "I am Claude, an AI assistant made by Anthropic.",
+    "prompt_tokens": 9,
+    "completion_tokens": 12,
+    "total_latency_ms": 800,
+    "raw": {"usage": {"input_tokens": 9, "output_tokens": 12, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0}}
+  },
+  "chat_with_tools": {
+    "text": "",
+    "prompt_tokens": 25,
+    "completion_tokens": 8,
+    "total_latency_ms": 950,
+    "tool_calls": [
+      {"name": "get_weather", "arguments": {"location": "Tokyo"}}
+    ],
+    "raw": {"usage": {"input_tokens": 25, "output_tokens": 8, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0}}
+  }
+}

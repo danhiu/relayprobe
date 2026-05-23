@@ -1,0 +1,20 @@
+{
+  "list_models": ["gemini-3-1-pro"],
+  "chat": {
+    "text": "I am Gemini, a model developed by Google.",
+    "prompt_tokens": 9,
+    "completion_tokens": 11,
+    "total_latency_ms": 1000,
+    "raw": {"usageMetadata": {"promptTokenCount": 9, "candidatesTokenCount": 11}}
+  },
+  "chat_with_tools": {
+    "text": "",
+    "prompt_tokens": 24,
+    "completion_tokens": 8,
+    "total_latency_ms": 1100,
+    "tool_calls": [
+      {"name": "get_weather", "arguments": {"location": "Tokyo"}}
+    ],
+    "raw": {"usageMetadata": {"promptTokenCount": 24, "candidatesTokenCount": 8}}
+  }
+}
