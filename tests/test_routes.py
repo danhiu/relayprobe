@@ -6,7 +6,8 @@ from app.main import create_app
 
 @pytest.fixture
 def client():
-    return TestClient(create_app())
+    with TestClient(create_app()) as c:
+        yield c
 
 
 def test_healthz(client):
@@ -77,3 +78,72 @@ def test_detect_does_not_leak_api_key(client, caplog):
     )
     full = "\n".join(rec.getMessage() for rec in caplog.records)
     assert "sk-VERYSECRETKEY12345" not in full
+
+
+def test_async_submit_then_poll_to_completion(client):
+    import time
+
+    r = client.post(
+        "/detect",
+        json={
+            "base_url": "https://x",
+            "api_key": "sk-test",
+            "model": "claude-opus-4-7",
+            "rounds": 11,
+            "budget_usd": 0.5,
+            "dry_run": True,
+            "mode": "async",
+        },
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["status"] == "running"
+    task_id = body["task_id"]
+    assert task_id.startswith("rp-")
+
+    # Poll. dry_run is fast — should land within a couple of ticks.
+    deadline = time.time() + 10
+    final = None
+    while time.time() < deadline:
+        g = client.get(f"/detect/{task_id}")
+        assert g.status_code == 200
+        if g.json()["status"] == "completed":
+            final = g.json()
+            break
+        time.sleep(0.05)
+    assert final is not None, "async job did not finish in 10s"
+    assert final["verdict"] == "authentic"
+    assert final["score"] >= 90
+
+
+def test_async_unknown_model_fails(client):
+    import time
+
+    r = client.post(
+        "/detect",
+        json={
+            "base_url": "https://x",
+            "api_key": "sk-test",
+            "model": "no-such-model",
+            "dry_run": True,
+            "mode": "async",
+        },
+    )
+    assert r.status_code == 200
+    task_id = r.json()["task_id"]
+
+    deadline = time.time() + 5
+    final = None
+    while time.time() < deadline:
+        g = client.get(f"/detect/{task_id}").json()
+        if g["status"] == "failed":
+            final = g
+            break
+        time.sleep(0.05)
+    assert final is not None
+    assert final["status"] == "failed"
+
+
+def test_get_unknown_task_id_returns_404(client):
+    r = client.get("/detect/rp-nope")
+    assert r.status_code == 404

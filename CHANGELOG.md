@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0-rc.1] — 2026-05-24
+
+First v0.2 milestone — the async task mode promised in the v0.1 roadmap.
+Long-running detections (Claude Opus, GPT-5) no longer hit the 60s sync
+timeout.
+
+### Added
+
+- `mode="async"` on `POST /detect` — submits the audit and returns
+  immediately with `task_id` and `status="running"`
+- `GET /detect/{task_id}` — poll endpoint; status transitions
+  `running` → `completed` / `failed`
+- In-process job store (`app/jobs.py`) with 1h TTL and a 60s reaper
+- Health endpoint reports the package version (was hard-coded)
+
+### Unchanged
+
+- `POST /detect` with `mode="sync"` (the default) keeps the v0.1
+  behavior exactly: blocks up to 60s, returns 408 on timeout. Existing
+  CLI / curl callers don't need to change anything.
+
+[0.2.0-rc.1]: https://github.com/danhiu/relayprobe/releases/tag/v0.2.0-rc.1
+
 ## [0.1.0] — 2026-05-23
 
 Initial public release.

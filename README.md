@@ -81,8 +81,31 @@ Adding a model is a one-file PR — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 | Method | Path | Purpose |
 |---|---|---|
-| `POST` | `/detect` | Run audit (≤60s synchronous) |
-| `GET` | `/healthz` | Liveness probe |
+| `POST` | `/detect` | Run audit. `mode="sync"` (default) blocks ≤60s; `mode="async"` returns `task_id` immediately |
+| `GET`  | `/detect/{task_id}` | Poll an async detection — status: `running` / `completed` / `failed` |
+| `GET`  | `/healthz` | Liveness probe |
+
+#### Async example
+
+```bash
+# Submit
+TASK_ID=$(curl -s -X POST http://127.0.0.1:8800/detect \
+  -H "Content-Type: application/json" \
+  -d '{"base_url":"https://x","api_key":"sk-...","model":"claude-opus-4-7","mode":"async"}' \
+  | jq -r .task_id)
+
+# Poll every 5s until done
+while :; do
+  RES=$(curl -s http://127.0.0.1:8800/detect/$TASK_ID)
+  echo "$RES" | jq -r '"status=\(.status) score=\(.score)"'
+  [ "$(echo "$RES" | jq -r .status)" != "running" ] && { echo "$RES" | jq .; break; }
+  sleep 5
+done
+```
+
+Use `mode="async"` for slow audits (Claude Opus, GPT-5 multi-round
+probes) where the 60s sync ceiling is too tight. Job state lives in the
+detector process for 1h after completion, then is reaped.
 
 Full request and response schema: [`app/detector/types.py`](app/detector/types.py).
 
@@ -202,7 +225,9 @@ The core library is pure Python with no FastAPI dependency. CLI and HTTP layer s
 
 ## Roadmap
 
-- **v0.2** — protocol consistency, knowledge signature, web search, sub-agent dimensions; async task mode; SQLite caching
+- **v0.2** — ~~async task mode~~ ✅ (rc.1, see [CHANGELOG](CHANGELOG.md));
+  protocol consistency, knowledge signature, web search, sub-agent
+  dimensions; SQLite caching
 - **v0.3** — `/compare` endpoint for side-by-side audits; baseline catalog expanded to 50+ models (Grok, DeepSeek, Qwen, Moonshot, ZhipuAI)
 - **v0.4** — Streaming protocol fingerprint detection (SSE format compliance, first-token latency)
 
