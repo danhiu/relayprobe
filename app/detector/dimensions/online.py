@@ -29,7 +29,7 @@ class Online(Dimension):
 
         try:
             chat = await ctx.adapter.chat(
-                model=ctx.baseline.name,
+                model=ctx.target_model,
                 messages=[ChatMessage(role="user", content="hi")],
                 max_tokens=10,
             )

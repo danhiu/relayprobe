@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from app import __version__ as version
 from app.detector.log_redact import install_global_filter
 from app.jobs import reaper_loop
+from app.routes.baselines import router as baselines_router
 from app.routes.detect import router as detect_router
 from app.routes.health import router as health_router
 
@@ -36,6 +37,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title="AI Relay Detector", version=version, lifespan=lifespan)
     app.include_router(health_router)
     app.include_router(detect_router)
+    app.include_router(baselines_router)
     return app
 
 

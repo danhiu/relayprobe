@@ -15,6 +15,7 @@ def _make_ctx(adapter):
     return DimensionContext(
         adapter=adapter,
         baseline=baseline,
+        target_model=baseline.name,
         budget=BudgetTracker(budget_usd=1.0),
         rng=random.Random(0),
         rounds_log=[],

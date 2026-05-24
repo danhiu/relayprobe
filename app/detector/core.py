@@ -64,9 +64,10 @@ def _resolve_provider(model: str, override: str | None) -> str:
     if override:
         return override
     baselines = load_baselines()
-    if model not in baselines:
+    baseline = baselines.resolve(model)
+    if baseline is None:
         raise ValueError(f"unknown model: {model!r}")
-    return baselines[model].provider
+    return baseline.provider
 
 
 def _build_adapter(req: DetectRequest, provider: str) -> Adapter | _MockAdapter:
@@ -83,9 +84,9 @@ async def run_detection(req: DetectRequest) -> DetectResponse:
     task_id = req.task_id or uuid.uuid4().hex
     baselines = load_baselines()
 
-    if req.model not in baselines:
+    baseline = baselines.resolve(req.model)
+    if baseline is None:
         raise ValueError(f"unknown model: {req.model!r}")
-    baseline = baselines[req.model]
 
     provider = _resolve_provider(req.model, req.expected_provider)
     adapter = _build_adapter(req, provider)
@@ -96,6 +97,9 @@ async def run_detection(req: DetectRequest) -> DetectResponse:
     ctx = DimensionContext(
         adapter=adapter,
         baseline=baseline,
+        # The caller's original identifier is what the upstream sees on
+        # the wire. Resolution above only chooses the scoring baseline.
+        target_model=req.model,
         budget=budget,
         rng=rng,
         rounds_log=rounds_log,

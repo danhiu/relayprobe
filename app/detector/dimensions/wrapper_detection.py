@@ -27,7 +27,7 @@ class WrapperDetection(Dimension):
     async def evaluate(self, ctx: DimensionContext) -> DimensionResult:
         try:
             result = await ctx.adapter.chat(
-                model=ctx.baseline.name,
+                model=ctx.target_model,
                 messages=[ChatMessage(role="user", content=PROBE)],
                 max_tokens=10,
             )

@@ -147,3 +147,54 @@ def test_async_unknown_model_fails(client):
 def test_get_unknown_task_id_returns_404(client):
     r = client.get("/detect/rp-nope")
     assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# /baselines catalog (added in v0.2.0 to give external clients a single
+# source of truth for which model names the detector accepts)
+# ---------------------------------------------------------------------------
+
+
+def test_baselines_catalog_lists_known_models(client):
+    r = client.get("/baselines")
+    assert r.status_code == 200
+    body = r.json()
+    names = {b["name"] for b in body["baselines"]}
+    assert {"claude-opus-4-7", "gpt-5-5", "gemini-3-1-pro"}.issubset(names)
+    assert "-thinking" in body["runtime_suffixes"]
+    assert body["dated_suffix_pattern"]
+
+
+def test_baselines_catalog_exposes_aliases(client):
+    """new-api needs to know `gpt-5.5` resolves to baseline `gpt-5-5`
+    without re-implementing resolution. Aliases must round-trip."""
+    body = client.get("/baselines").json()
+    by_name = {b["name"]: b for b in body["baselines"]}
+    assert "gpt-5.5" in by_name["gpt-5-5"]["aliases"]
+    assert "gemini-3.1-pro" in by_name["gemini-3-1-pro"]["aliases"]
+
+
+def test_resolve_endpoint_dotted_alias(client):
+    r = client.get("/baselines/resolve", params={"model": "gpt-5.5"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["supported"] is True
+    assert body["baseline"] == "gpt-5-5"
+    assert body["target_model"] == "gpt-5.5"
+
+
+def test_resolve_endpoint_runtime_suffix(client):
+    body = client.get(
+        "/baselines/resolve", params={"model": "gemini-3.1-pro-low"}
+    ).json()
+    assert body["supported"] is True
+    assert body["baseline"] == "gemini-3-1-pro"
+    assert body["target_model"] == "gemini-3.1-pro-low"
+
+
+def test_resolve_endpoint_unknown(client):
+    body = client.get(
+        "/baselines/resolve", params={"model": "claude-opus-4-1"}
+    ).json()
+    assert body["supported"] is False
+    assert body["baseline"] is None

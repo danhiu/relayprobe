@@ -32,7 +32,7 @@ class ToolUse(Dimension):
 
         try:
             result = await ctx.adapter.chat_with_tools(
-                model=ctx.baseline.name,
+                model=ctx.target_model,
                 messages=[ChatMessage(role="user", content=prompt)],
                 tools=[WEATHER_TOOL],
                 max_tokens=200,

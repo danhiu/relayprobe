@@ -74,7 +74,7 @@ class TokenBilling(Dimension):
         for i in range(self.rounds_used):
             try:
                 result = await ctx.adapter.chat(
-                    model=baseline.name,
+                    model=ctx.target_model,
                     messages=[ChatMessage(role="user", content=FIXED_PROMPT)],
                     max_tokens=20,
                 )
@@ -129,22 +129,61 @@ class TokenBilling(Dimension):
             statistics.median(observed_cache_creation) if observed_cache_creation else 0
         )
 
-        # Effective-input scoring (after cache_read is excluded):
-        # 0-15%   -> 100  (well within tokenizer noise)
-        # 15-50%  -> 85   (borderline, may be larger user message)
-        # 50-100% -> 60   (clear inflation — small system prompt injected)
-        # >100%   -> 30   (heavy inflation — large system prompt or different tokenizer)
-        # >300%   -> 0    (different model entirely)
+        # Stability across rounds: a relay that injects a *fixed-size*
+        # system prompt produces a flat curve (every round identical),
+        # while a relay that genuinely re-tokenises your prompt against a
+        # different model produces a noisy curve. The difference matters
+        # for scoring — a fixed wrapper is already penalised by the
+        # wrapper_detection dimension, so we don't double-count it here.
+        spread = max(observed_effective) - min(observed_effective) if observed_effective else 0
+        is_stable = spread <= 2  # tokenizer round-trip tolerance
+        inflation_tokens = max(0, int(median_actual) - expected)
+
+        # Two scoring tracks:
+        #
+        # 1. Stable count (every round identical) — overhead is a constant
+        #    system prompt the relay prepends. The model itself is plausibly
+        #    correct; we don't punish it like a swap. Floor at 60 so the
+        #    "inflated by 138 tokens, every time" case isn't conflated with
+        #    "different model entirely".
+        #
+        # 2. Unstable count — actual per-prompt tokenisation is happening
+        #    but mismatched against the baseline tokenizer family. That's
+        #    the strong "served by a different model" signal. We keep the
+        #    aggressive ladder there.
+        #
+        # The two tracks share a no-deviation top: <15% drift on either
+        # track still scores 100.
+
         if deviation_pct < 15:
             score, status = 100, "ok"
-        elif deviation_pct < 50:
-            score, status = 85, "ok"
-        elif deviation_pct < 100:
-            score, status = 60, "degraded"
-        elif deviation_pct < 300:
-            score, status = 30, "degraded"
+        elif is_stable:
+            # Inflation is a constant offset. Score by absolute size, not %.
+            # < 50 tokens   -> 90  ("be helpful" preamble; no real impact)
+            # 50-200        -> 75  (small wrapper; slight cost overhead)
+            # 200-800       -> 60  (medium wrapper; visible cost overhead)
+            # 800+          -> 50  (heavy wrapper; user is buying overhead,
+            #                       but the model itself can still be real;
+            #                       wrapper_detection covers the rest)
+            if inflation_tokens < 50:
+                score, status = 90, "ok"
+            elif inflation_tokens < 200:
+                score, status = 75, "ok"
+            elif inflation_tokens < 800:
+                score, status = 60, "degraded"
+            else:
+                score, status = 50, "degraded"
         else:
-            score, status = 0, "missing"
+            # Unstable across rounds — looks like real per-prompt counting,
+            # but against the wrong tokenizer.
+            if deviation_pct < 50:
+                score, status = 85, "ok"
+            elif deviation_pct < 100:
+                score, status = 55, "degraded"
+            elif deviation_pct < 300:
+                score, status = 25, "degraded"
+            else:
+                score, status = 0, "missing"
 
         return DimensionResult(
             name=self.name, score=score, status=status,
@@ -154,6 +193,8 @@ class TokenBilling(Dimension):
                 "observed_median_cache_read": median_cache_read,
                 "observed_median_cache_creation": median_cache_creation,
                 "deviation_pct": round(deviation_pct, 2),
+                "inflation_tokens": inflation_tokens,
+                "stable_across_rounds": is_stable,
                 "per_round": per_round,
             },
         )

@@ -5,6 +5,88 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0-rc.3] — 2026-05-24
+
+Refines `token_billing` so a fixed-size system-prompt overhead — common
+across reverse-proxy relays — no longer collapses the dimension to 0
+and gets double-counted with `wrapper_detection`.
+
+### Changed
+
+- `token_billing` now branches on **stability across rounds** before
+  applying the ladder:
+  - **Stable** counts (every round identical, ≤ 2 token spread): the
+    overhead is a constant injection, already covered by
+    `wrapper_detection`. Score by absolute inflation:
+    `<50` → 90, `50–200` → 75, `200–800` → 60, `800+` → 50. Floors at
+    50 — never zeroes out a relay just because it prepends a wrapper.
+  - **Unstable** counts (genuine per-prompt re-tokenisation against the
+    wrong tokenizer): the original aggressive ladder applies, with 0
+    reserved for `>300%` deviation. This is the actual "different
+    model entirely" signal.
+- New evidence fields: `inflation_tokens` (absolute overhead vs the
+  baseline tokenizer expectation) and `stable_across_rounds` (boolean).
+- Tests updated; `test_high_deviation_flagged` replaced with two
+  tests that cover both branches explicitly.
+
+[0.2.0-rc.3]: https://github.com/danhiu/relayprobe/releases/tag/v0.2.0-rc.3
+
+## [0.2.0-rc.2] — 2026-05-24
+
+Resolves the long-standing "relay publishes the model under a different
+identifier than the canonical baseline" mismatch. The detector now
+treats `data/baselines.yaml` as the single source of truth for both
+*which baselines exist* and *which identifiers map to them*; client
+code (notably new-api) no longer needs to maintain a parallel mapping.
+
+### Added
+
+- `aliases:` per-baseline list in `baselines.yaml` — populated for
+  `gpt-5-5` (`gpt-5.5`), `gpt-5-4` (`gpt-5.4`), `gemini-3-1-pro`
+  (`gemini-3.1-pro`).
+- Top-level `runtime_suffixes` and `dated_suffix_pattern` in
+  `baselines.yaml` — drive the resolver's suffix-strip behavior so
+  `claude-opus-4-7-thinking`, `gemini-3.1-pro-low`, and
+  `claude-opus-4-7-20251101` all resolve to their underlying baseline.
+- `BaselinesIndex.resolve(model)` — the canonical resolver. Implements:
+  exact match → alias → punctuation normalization → runtime-suffix
+  strip (loops, supports stacking) → dated-suffix strip (only when the
+  prefix itself resolves).
+- `GET /baselines` — full catalog plus the suffix list and dated
+  pattern, so external clients can mirror resolution without
+  re-implementing it.
+- `GET /baselines/resolve?model=<id>` — single-shot resolver. Returns
+  `{supported, baseline, target_model, aliases}`.
+- `DimensionContext.target_model` — the identifier sent on the wire.
+  Decoupled from `baseline.name` so a request for `gpt-5.5` is routed
+  through the `gpt-5-5` baseline for *scoring* but reaches upstream as
+  `gpt-5.5`. All five dimensions updated to use it.
+
+### Fixed
+
+- `POST /detect` previously sent the canonical baseline name to the
+  upstream relay. Sites that publish the model under an alias (e.g.
+  yyc.lat exposes `gpt-5.5`, not `gpt-5-5`) returned 503
+  "model_not_found", which the detector reported as `verdict=offline`
+  even though the relay was serving the model fine. The detector now
+  sends the caller's original identifier upstream while still scoring
+  against the resolved baseline.
+- `BaselinesIndex.from_dict` now raises `ValueError` on alias
+  collisions (two baselines claiming the same alias), preventing
+  silent shadowing at resolve time.
+
+### Migration notes
+
+- The Python public symbol `Baseline` is unchanged. Code that did
+  `load_baselines()[name]` keeps working because `BaselinesIndex`
+  still supports `__getitem__` / `__contains__` / `keys` / `values` /
+  `items`. Resolution-aware code should call `idx.resolve(name)`.
+- `DimensionContext` gained a required `target_model` field. Any
+  external dimension implementations need to update their context
+  construction.
+
+[0.2.0-rc.2]: https://github.com/danhiu/relayprobe/releases/tag/v0.2.0-rc.2
+
 ## [0.2.0-rc.1] — 2026-05-24
 
 First v0.2 milestone — the async task mode promised in the v0.1 roadmap.

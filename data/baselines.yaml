@@ -1,9 +1,54 @@
-# 5 个 v0.1 支持的模型基线。新增模型时需保持字段齐全。
-# forbidden 列表包含两类：
-#   1. 其他厂商名（命中=被替换成对家模型）
-#   2. 已知 Claude wrapper（kiro/cursor/continue/cline/aider/zed）— 命中=站点在卖反代，不是官方 Claude
+# Single source of truth for model baselines and identifier resolution.
+#
+# When a relay site exposes a model under a slightly different identifier
+# than the canonical baseline name (e.g. `gpt-5.5` vs `gpt-5-5`,
+# `claude-opus-4-7-20251101` vs `claude-opus-4-7`,
+# `gemini-3.1-pro-low` vs `gemini-3-1-pro`), the detector resolves the
+# request name to a baseline using the rules below — *and then issues
+# the upstream request using the original name*. This keeps the wire
+# call compatible with whatever the relay actually publishes while the
+# scoring still uses the right baseline.
+#
+# Resolution order (first match wins):
+#   1. exact match against a baseline `name:`
+#   2. exact match against any baseline's `aliases:` list
+#   3. punctuation normalization: `.` → `-`, then re-check 1+2
+#   4. strip a single trailing token from `runtime_suffixes`, re-check 1+2
+#      (repeats while a known suffix is present, so `-thinking-low` works)
+#   5. strip a trailing dated snapshot matching `dated_suffix_pattern`,
+#      re-check 1+2 — but only accept the strip when the prefix itself
+#      resolves, so we don't blindly chop digits off non-baseline names
+#
+# `forbidden_identity_keywords` covers two failure modes:
+#   1. another vendor name leaking through (= upstream is serving the
+#      wrong model)
+#   2. a known Claude wrapper / IDE preamble showing up
+#      (kiro/cursor/continue/cline/aider/zed) — model may be Claude but
+#      the relay is selling someone else's reverse-engineered prompt
+
+# Tokens that mean "same SKU, different runtime knob". Stripping them
+# during resolution lets `claude-opus-4-7-thinking` and `gemini-3.1-pro-low`
+# both resolve to the underlying baseline.
+#
+# DO NOT add tokens here that change the SKU itself:
+#   - `-mini`, `-nano` are different (smaller) models with different prices
+#   - `-flash` is a separate Gemini family
+# Those need their own baseline entry, not a suffix mapping.
+runtime_suffixes:
+  - -thinking
+  - -low
+  - -medium
+  - -high
+  - -minimal
+
+# Regex (Python `re.search`) for trailing dated snapshots like
+# `claude-opus-4-7-20251101`. The strip is only accepted when the prefix
+# (everything before the match) is itself a baseline name or alias.
+dated_suffix_pattern: '-\d{8}$'
+
 models:
   claude-opus-4-7:
+    aliases: []
     provider: anthropic
     expected_identity_keywords: ["claude", "anthropic"]
     forbidden_identity_keywords: ["openai", "gpt", "google", "gemini", "glm", "qwen", "deepseek", "kiro", "cursor", "cline", "continue.dev", "aider", "zed"]
@@ -20,6 +65,7 @@ models:
     vendor_baseline_score: 95
 
   claude-sonnet-4-6:
+    aliases: []
     provider: anthropic
     expected_identity_keywords: ["claude", "anthropic"]
     forbidden_identity_keywords: ["openai", "gpt", "google", "gemini", "glm", "qwen", "deepseek", "kiro", "cursor", "cline", "continue.dev", "aider", "zed"]
@@ -36,6 +82,7 @@ models:
     vendor_baseline_score: 88
 
   gpt-5-5:
+    aliases: ["gpt-5.5"]
     provider: openai
     expected_identity_keywords: ["gpt", "openai"]
     forbidden_identity_keywords: ["claude", "anthropic", "google", "gemini", "glm", "qwen", "deepseek", "kiro", "cursor", "cline", "continue.dev", "aider", "zed"]
@@ -52,6 +99,7 @@ models:
     vendor_baseline_score: 90
 
   gpt-5-4:
+    aliases: ["gpt-5.4"]
     provider: openai
     expected_identity_keywords: ["gpt", "openai"]
     forbidden_identity_keywords: ["claude", "anthropic", "google", "gemini", "glm", "qwen", "deepseek", "kiro", "cursor", "cline", "continue.dev", "aider", "zed"]
@@ -68,6 +116,7 @@ models:
     vendor_baseline_score: 86
 
   gemini-3-1-pro:
+    aliases: ["gemini-3.1-pro"]
     provider: google
     expected_identity_keywords: ["gemini", "google"]
     forbidden_identity_keywords: ["claude", "anthropic", "openai", "gpt", "glm", "qwen", "deepseek", "kiro", "cursor", "cline", "continue.dev", "aider", "zed"]

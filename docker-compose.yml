@@ -3,7 +3,7 @@ name: ai-relay-detector
 services:
   detector:
     build: .
-    image: ai-relay-detector:0.1.0
+    image: ai-relay-detector:0.2.0-rc.3
     container_name: ai-relay-detector
     restart: unless-stopped
     ports:
@@ -16,3 +16,12 @@ services:
       - /tmp
     security_opt:
       - no-new-privileges:true
+    networks:
+      - default
+      - new-api
+
+networks:
+  default:
+  new-api:
+    external: true
+    name: new-api_new-api-network

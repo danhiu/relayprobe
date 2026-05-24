@@ -26,7 +26,7 @@ class IdentityConsistency(Dimension):
             prompt, nonce = draw("identity", rng=ctx.rng)
             try:
                 result = await ctx.adapter.chat(
-                    model=baseline.name,
+                    model=ctx.target_model,
                     messages=[ChatMessage(role="user", content=prompt)],
                     max_tokens=80,
                 )

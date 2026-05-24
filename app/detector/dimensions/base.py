@@ -16,6 +16,12 @@ from app.detector.types import DimensionResult, RoundLog
 class DimensionContext:
     adapter: Adapter
     baseline: Baseline
+    # Identifier sent on the wire to the upstream relay. Often equals
+    # ``baseline.name`` but diverges when the relay publishes the model
+    # under an alias / dated / runtime-knob suffix (e.g. caller passes
+    # ``gpt-5.5`` which resolves to baseline ``gpt-5-5`` but must still
+    # be the model field upstream sees).
+    target_model: str
     budget: BudgetTracker
     rng: random.Random
     rounds_log: list[RoundLog]
