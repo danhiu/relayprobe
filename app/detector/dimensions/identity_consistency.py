@@ -59,9 +59,25 @@ class IdentityConsistency(Dimension):
             expected_hits.extend(round_expected)
             forbidden_hits.extend(round_forbidden)
 
-            verdict = "match" if round_expected and not round_forbidden else (
-                "mismatch" if round_forbidden else "vague"
-            )
+            # Per-round verdict semantics:
+            #   match     — model identified itself as the expected vendor and
+            #               did not claim any rival vendor as its own.
+            #   mixed     — model said "I'm Claude" AND mentioned a rival
+            #               vendor (e.g. "I'm Claude, not GPT made by OpenAI").
+            #               This is normal explanatory speech, not lying.
+            #   mismatch  — model claimed only a rival vendor, with no
+            #               expected keywords present. This is the only
+            #               outcome that's actual evidence of a swapped model.
+            #   vague     — neither expected nor forbidden keywords found
+            #               (refusal / safety preamble / off-topic).
+            if round_expected and not round_forbidden:
+                verdict = "match"
+            elif round_expected and round_forbidden:
+                verdict = "mixed"
+            elif round_forbidden:
+                verdict = "mismatch"
+            else:
+                verdict = "vague"
             ctx.rounds_log.append(
                 RoundLog(
                     round=len(ctx.rounds_log) + 1,
@@ -83,18 +99,25 @@ class IdentityConsistency(Dimension):
                 }
             )
 
+        verdicts = [r.get("verdict") for r in per_round if "verdict" in r]
+        n_match = sum(1 for v in verdicts if v == "match")
+        n_mixed = sum(1 for v in verdicts if v == "mixed")
+        n_mismatch = sum(1 for v in verdicts if v == "mismatch")
+        n_vague = sum(1 for v in verdicts if v == "vague")
+        total = max(1, len(verdicts))
+
         evidence = {
             "rounds_completed": len(responses),
             "expected_hits": list(set(expected_hits)),
             "forbidden_hits": list(set(forbidden_hits)),
+            "verdict_counts": {
+                "match": n_match,
+                "mixed": n_mixed,
+                "mismatch": n_mismatch,
+                "vague": n_vague,
+            },
             "per_round": per_round,
         }
-
-        # If any forbidden vendor or wrapper name leaked, this is fake.
-        if forbidden_hits:
-            return DimensionResult(
-                name=self.name, score=0, status="missing", evidence=evidence
-            )
 
         if len(responses) == 0:
             return DimensionResult(
@@ -102,23 +125,41 @@ class IdentityConsistency(Dimension):
                 error="no successful identity probe rounds"
             )
 
-        # Vague case: model refused to identify itself but didn't claim wrong vendor.
-        # Common with safety-trained or wrapper-stripped models — partial credit, not punitive.
-        if not expected_hits:
+        # Hard fail: every successful round was an outright misidentification
+        # (claimed only a rival vendor). At that point we're confident the
+        # upstream is serving the wrong model — not a probe artefact.
+        if n_mismatch == total and n_match == 0 and n_mixed == 0:
             return DimensionResult(
-                name=self.name, score=60, status="degraded", evidence=evidence
+                name=self.name, score=0, status="missing", evidence=evidence
             )
 
-        match_rate = len(set(expected_hits)) / max(1, len(baseline.expected_identity_keywords))
-        # 80%+ keyword coverage => 95
-        # 50-80%                => 80
-        # <50%                  => 70
-        if match_rate >= 0.8:
+        # Soft signals: count "true positives" as match + mixed (mixed means
+        # the model still self-identified correctly, it just also referenced
+        # other vendors in passing — usually because the prompt invited
+        # comparison). Mismatch rounds get penalised proportionally.
+        good = n_match + n_mixed
+        good_ratio = good / total
+        mismatch_ratio = n_mismatch / total
+
+        if mismatch_ratio >= 0.5:
+            # Majority of rounds the model claimed a rival vendor — treat as
+            # likely fake even if the occasional round happened to mention
+            # the right brand.
+            score, status = 20, "missing"
+        elif mismatch_ratio >= 0.25:
+            # Partial impersonation — minority of rounds outright wrong.
+            score, status = 50, "degraded"
+        elif good_ratio >= 0.8:
             score, status = 95, "ok"
-        elif match_rate >= 0.5:
+        elif good_ratio >= 0.5:
             score, status = 80, "ok"
-        else:
+        elif good > 0:
+            # A correct claim exists but most rounds were vague / refused.
             score, status = 70, "degraded"
+        else:
+            # No expected hits anywhere — vague but not lying. Common with
+            # safety-trained or wrapper-stripped models.
+            score, status = 60, "degraded"
 
         return DimensionResult(
             name=self.name, score=score, status=status, evidence=evidence

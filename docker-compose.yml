@@ -3,7 +3,7 @@ name: ai-relay-detector
 services:
   detector:
     build: .
-    image: ai-relay-detector:0.2.0-rc.4
+    image: ai-relay-detector:0.2.0-rc.5
     container_name: ai-relay-detector
     restart: unless-stopped
     ports:

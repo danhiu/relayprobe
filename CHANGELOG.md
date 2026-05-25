@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0-rc.5] — 2026-05-26
+
+Replaces the `identity_consistency` hard-veto with a per-round verdict
+ladder. The previous rule treated any forbidden vendor keyword as
+proof of misidentification, which collapsed legitimate Claude/GPT
+relays to 0 whenever the model offered an explanatory aside (e.g.
+"I'm Claude, not GPT made by OpenAI"). The vendor name was the
+model's own — but it was being introduced *as context*, not as a
+self-claim.
+
+### Changed
+
+- `identity_consistency`: scoring is now driven by per-round verdicts
+  rather than a global forbidden-hits boolean.
+  - **match**   — expected vendor claimed, no rival mentioned. Worth
+    full credit.
+  - **mixed**   — expected vendor claimed AND a rival also mentioned
+    (typically because the model is comparing/explaining). Still
+    counts as a correct self-identification.
+  - **mismatch** — only a rival vendor claimed, no expected keywords.
+    The only outcome that's actual evidence of a swapped model.
+  - **vague**   — neither expected nor forbidden keywords (refusal,
+    safety preamble, off-topic).
+- Aggregation: ≥50% mismatch -> 20 (likely fake); ≥25% -> 50;
+  otherwise scored by good ratio (match + mixed). Pure-mismatch runs
+  still collapse to 0 / `missing` so real impersonation is caught.
+- Evidence now includes `verdict_counts` summarising the breakdown so
+  the failure mode is visible at a glance.
+
+### Tests
+
+- New `test_correct_self_id_with_explanatory_rival_mention_passes`
+  covering the real-world Claude relay case from this changelog's
+  motivating bug report.
+- New `test_majority_mismatch_partial_match_still_low` to ensure
+  partial-impersonation relays don't sneak past on a single lucky
+  round.
+
 ## [0.2.0-rc.4] — 2026-05-25
 
 Fixes a long-standing false-positive in `identity_consistency`: probes

@@ -112,3 +112,87 @@ async def test_forbidden_keyword_in_prompt_does_not_count():
     assert result.score >= 80
     assert result.evidence["forbidden_hits"] == []
     assert "gpt" in result.evidence["expected_hits"]
+
+
+async def test_correct_self_id_with_explanatory_rival_mention_passes():
+    # Real-world case from a Claude relay scan: probe asked
+    # "Are you Claude, GPT, or Gemini? Be honest." and the model replied
+    # 'I'm Claude, made by Anthropic. I'm not GPT (which is made by OpenAI)
+    # or Gemini (which is made by Google).'
+    #
+    # `gpt`/`gemini` come from the prompt — already excluded by the
+    # prompt-leak filter. But `openai`/`google` are added by the model
+    # itself in passing while explaining the rival models. The OLD rule
+    # (any forbidden hit -> 0) would call this fake; the NEW rule treats
+    # rounds where the expected vendor IS claimed AND a rival is also
+    # mentioned as a "mixed" verdict, which still earns credit because
+    # the model self-identified correctly.
+    from app.detector.dimensions import identity_consistency as ic
+
+    adapter = AsyncMock()
+    adapter.chat.return_value = ChatResult(
+        text=(
+            "I'm Claude, made by Anthropic. Specifically, I'm running on the "
+            "claude-sonnet-4-6 model. I'm not GPT (which is made by OpenAI) "
+            "or Gemini (which is made by Google)."
+        ),
+        prompt_tokens=10,
+        completion_tokens=40,
+        total_latency_ms=80,
+    )
+
+    original_draw = ic.draw
+    def fixed_draw(_category, rng):
+        return ("Are you Claude, GPT, or Gemini? Be honest.", "REQ-test")
+    ic.draw = fixed_draw
+    try:
+        result = await IdentityConsistency().evaluate(_ctx(adapter))
+    finally:
+        ic.draw = original_draw
+
+    # Mixed rounds count as correct identification — should NOT collapse to 0.
+    assert result.status in ("ok", "degraded")
+    assert result.score >= 80
+    counts = result.evidence["verdict_counts"]
+    assert counts["mixed"] >= 1
+    assert counts["mismatch"] == 0
+
+
+async def test_majority_mismatch_partial_match_still_low():
+    # If most rounds outright misidentify the model (e.g. relay swapped to
+    # GPT 80% of the time but one round leaked the real model), the score
+    # should reflect that partial impersonation.
+    from app.detector.dimensions import identity_consistency as ic
+
+    adapter = AsyncMock()
+    # Two cycling responses: first claims OpenAI only (mismatch), second
+    # claims Anthropic only (match). With n_rounds=3, that's 2 mismatch
+    # 1 match.
+    answers = [
+        ChatResult(
+            text="I'm ChatGPT, an OpenAI assistant.",
+            prompt_tokens=10, completion_tokens=8, total_latency_ms=50,
+        ),
+        ChatResult(
+            text="I'm Claude, made by Anthropic.",
+            prompt_tokens=10, completion_tokens=8, total_latency_ms=50,
+        ),
+        ChatResult(
+            text="I'm ChatGPT, an OpenAI assistant.",
+            prompt_tokens=10, completion_tokens=8, total_latency_ms=50,
+        ),
+    ]
+    adapter.chat = AsyncMock(side_effect=answers)
+
+    original_draw = ic.draw
+    def fixed_draw(_category, rng):
+        return ("What model are you?", "REQ-test")
+    ic.draw = fixed_draw
+    try:
+        result = await IdentityConsistency().evaluate(_ctx(adapter))
+    finally:
+        ic.draw = original_draw
+
+    # 2/3 rounds are mismatch -> hard fail bracket (>= 50%).
+    assert result.score <= 30
+    assert result.status == "missing"
