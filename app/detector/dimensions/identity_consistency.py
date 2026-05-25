@@ -42,12 +42,19 @@ class IdentityConsistency(Dimension):
                 continue
 
             text = result.text.lower()
+            prompt_lower = prompt.lower()
             responses.append(result.text)
             round_expected = [
                 kw for kw in baseline.expected_identity_keywords if kw.lower() in text
             ]
+            # Forbidden vendor names that already appear in the prompt itself
+            # don't count: probes like "Are you Claude, GPT, or Gemini?" force
+            # the model to repeat those names just to deny them. Only words
+            # the model introduced unprompted are evidence of misidentification.
             round_forbidden = [
-                kw for kw in baseline.forbidden_identity_keywords if kw.lower() in text
+                kw
+                for kw in baseline.forbidden_identity_keywords
+                if kw.lower() in text and kw.lower() not in prompt_lower
             ]
             expected_hits.extend(round_expected)
             forbidden_hits.extend(round_forbidden)
@@ -71,6 +78,8 @@ class IdentityConsistency(Dimension):
                     "prompt": prompt,
                     "response_excerpt": result.text[:200],
                     "verdict": verdict,
+                    "matched_expected": round_expected,
+                    "matched_forbidden": round_forbidden,
                 }
             )
 

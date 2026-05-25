@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0-rc.4] — 2026-05-25
+
+Fixes a long-standing false-positive in `identity_consistency`: probes
+that name vendors as part of the question itself (e.g. "Are you Claude,
+GPT, or Gemini?") forced the model to repeat those names in any honest
+denial, which then tripped the `forbidden_identity_keywords` rule and
+collapsed the dimension to 0 — turning real GPT and real Claude
+relays into "missing" (suspicious / likely_fake) verdicts at random.
+
+### Fixed
+
+- `identity_consistency`: forbidden vendor keywords that already appear
+  in the prompt no longer count toward the round's `forbidden_hits`.
+  Only words the model introduces unprompted are evidence of
+  misidentification. Per-round evidence now records both
+  `matched_expected` and `matched_forbidden` so admins can see why a
+  verdict landed.
+- `wrapper_detection`: the catch-all exception handler used to record
+  `evidence={"error": str(e)}`. Some httpx errors arrive with empty
+  `str(e)` (e.g. `ConnectError` on half-closed sockets), leaving the
+  evidence as a useless `{"error": ""}`. Now also captures
+  `exception_type` so transient blips are debuggable.
+
+### Tests
+
+- New `test_forbidden_keyword_in_prompt_does_not_count` covering the
+  three-way trap probe path.
+
 ## [0.2.0-rc.3] — 2026-05-24
 
 Refines `token_billing` so a fixed-size system-prompt overhead — common

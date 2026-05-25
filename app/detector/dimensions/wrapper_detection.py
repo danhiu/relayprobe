@@ -39,9 +39,17 @@ class WrapperDetection(Dimension):
         except BudgetExceeded:
             raise
         except Exception as e:
+            # Some httpx errors arrive with empty str(e) (e.g. ConnectError on
+            # half-closed sockets). Capture the type name too so the evidence
+            # is never just `{"error": ""}` — that gave admins no way to
+            # distinguish a real wrapper-detection failure from a transient
+            # network blip.
+            err_type = type(e).__name__
+            err_msg = str(e) or err_type
             return DimensionResult(
                 name=self.name, score=0, status="error",
-                evidence={"error": str(e)}, error=str(e),
+                evidence={"error": err_msg, "exception_type": err_type},
+                error=err_msg,
             )
 
         eff, cache_read, cache_creation = _extract_input_tokens(result.raw)

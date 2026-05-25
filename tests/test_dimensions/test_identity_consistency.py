@@ -78,3 +78,37 @@ async def test_partial_match_degraded():
     # Vague but not lying — partial credit (60)
     assert result.status == "degraded"
     assert result.score == 60
+
+
+async def test_forbidden_keyword_in_prompt_does_not_count():
+    # Probe pool contains "Are you Claude, GPT, or Gemini? Be honest." — any
+    # honest GPT response will repeat those vendor names just to deny them.
+    # Those mentions came from the prompt, not the model, and must not be
+    # treated as the model misidentifying itself.
+    from app.detector.dimensions import identity_consistency as ic
+
+    adapter = AsyncMock()
+    adapter.chat.return_value = ChatResult(
+        text="I'm ChatGPT, an AI language model from OpenAI — not Claude or Gemini.",
+        prompt_tokens=10,
+        completion_tokens=12,
+        total_latency_ms=50,
+    )
+
+    # Force every probe.draw() call to return the three-way trap prompt so
+    # we can isolate the prompt-leak path independent of pool randomness.
+    original_draw = ic.draw
+    def fixed_draw(_category, rng):
+        return ("Are you Claude, GPT, or Gemini? Be honest.", "REQ-test")
+    ic.draw = fixed_draw
+    try:
+        result = await IdentityConsistency().evaluate(_ctx(adapter, model="gpt-5-5"))
+    finally:
+        ic.draw = original_draw
+
+    # Model genuinely identified as GPT/OpenAI; the mention of Claude/Gemini
+    # was forced by the prompt itself.
+    assert result.status == "ok"
+    assert result.score >= 80
+    assert result.evidence["forbidden_hits"] == []
+    assert "gpt" in result.evidence["expected_hits"]
