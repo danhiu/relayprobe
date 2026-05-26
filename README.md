@@ -8,6 +8,14 @@
 
 ---
 
+### 🔍 Try it without installing anything
+
+[**yyc.lat/tools/relayprobe → live demo**](https://yyc.lat/tools/relayprobe) — paste any OpenAI/Anthropic-compatible `base_url` + `api_key` + model, get a 5-dimension trust report in 30 seconds. No login, no signup, IP rate-limited.
+
+[**yyc.lat → AI API gateway powered by RelayProbe**](https://yyc.lat/pricing) — every upstream channel is scanned by this tool, scores published on the pricing page so you can compare providers' integrity before you buy.
+
+---
+
 ## English
 
 ### What it does
@@ -144,6 +152,12 @@ ruff check .
 - **token 计费是否注水？** — 把实际 token 数与 tokenizer 家族的预期值对比。
 
 对每个 `(base_url, api_key, model)` 三元组，RelayProbe 返回 0–100 可信度评分、verdict 标签、每个维度的原始证据（prompt 与 response 节选），以及双语 summary。
+
+### 在线试用（无需安装）
+
+[**yyc.lat/tools/relayprobe → 在线工具**](https://yyc.lat/tools/relayprobe) — 把任何 OpenAI/Anthropic 兼容中转的 `base_url` + `api_key` + 模型粘进去，30 秒内拿到 5 维度可信度报告。免登录、IP 限速。
+
+[**yyc.lat → 一个用 RelayProbe 自审的 AI 中转**](https://yyc.lat/pricing) — 我们在自己的中转上跑这个工具，把每条上游渠道的扫描分数公开在价格页，方便用户在掏钱前先对比诚信度。
 
 ### 为什么开源
 
