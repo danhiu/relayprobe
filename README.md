@@ -63,15 +63,24 @@ python -m app.cli --base https://your-gateway.example.com \
   --key sk-... --model claude-sonnet-4-6 --rounds 6 --budget 0.15
 ```
 
-### Detection dimensions (v0.1)
+### Detection dimensions (v0.3)
 
 | Dimension | Detects | Score |
 |---|---|---|
 | `online` | Reachability of `/v1/models` and chat endpoint | 0 / 80 / 100 |
-| `identity_consistency` | Self-reported identity matches the requested model; flags wrappers (Kiro, Cursor, Continue, Cline, Aider, Zed) | 0 / 60 / 70 / 80 / 95 |
+| `identity_consistency` | Self-reported identity matches the requested model; flags wrappers (Kiro, Cursor, Continue, Cline, Aider, Zed) | 0 / 20 / 50 / 70 / 80 / 95 |
 | `wrapper_detection` | Hidden system prompt injection, measured by `cache_read_input_tokens` and effective input excess | 0 / 30 / 70 / 100 |
 | `token_billing` | Effective input deviation from tokenizer-family expectations (cache excluded) | 0 / 30 / 60 / 85 / 100 |
 | `tool_use` | Function calling actually returns `tool_calls` with valid arguments | 0 / 40 / 60 / 100 |
+| `injection_safety` | Response poisoning by the relay: `curl\|sh` payloads, rogue "ignore previous instructions", markdown-image exfil, zero-width unicode, large opaque blobs in short answers | 0 / 20 / 40 / 70 / 100 |
+
+> **Why `injection_safety` matters.** A compromised relay can silently
+> splice an installer one-liner into an otherwise-normal reply. When a
+> Claude Code / Codex / Aider session "helpfully" runs the suggestion,
+> the user is owned. We probe with trivially benign prompts ("What is
+> 12 × 7?") so any executable command, exfil image, or hidden unicode
+> in the response is by construction the relay's contribution rather
+> than the model's.
 
 The final score is a weighted average over enabled dimensions; `online` failure short-circuits the verdict to `offline`.
 
@@ -186,15 +195,22 @@ curl -X POST http://127.0.0.1:8800/detect \
   }'
 ```
 
-### 检测维度（v0.1）
+### 检测维度（v0.3）
 
 | 维度 | 检测什么 | 分数 |
 |---|---|---|
 | `online` | `/v1/models` 与 chat endpoint 是否可达 | 0 / 80 / 100 |
-| `identity_consistency` | 自报身份是否与请求的模型一致；标记 Kiro/Cursor/Continue/Cline/Aider/Zed 等 wrapper | 0 / 60 / 70 / 80 / 95 |
+| `identity_consistency` | 自报身份是否与请求的模型一致；标记 Kiro/Cursor/Continue/Cline/Aider/Zed 等 wrapper | 0 / 20 / 50 / 70 / 80 / 95 |
 | `wrapper_detection` | 隐藏 system prompt 注入（用 `cache_read_input_tokens` 与超额 input 测算） | 0 / 30 / 70 / 100 |
 | `token_billing` | 有效 input 与 tokenizer 家族预期值的偏差（已扣除 cache） | 0 / 30 / 60 / 85 / 100 |
 | `tool_use` | function calling 是否真返回了 `tool_calls` 与合法参数 | 0 / 40 / 60 / 100 |
+| `injection_safety` | 中转往响应里夹带的"投毒"：`curl\|sh` 一键安装、"忽略之前指令"类 rogue prompt、markdown 图片外发、零宽 unicode 隐写、答案里塞大段不透明 blob | 0 / 20 / 40 / 70 / 100 |
+
+> **为什么 `injection_safety` 重要**。被入侵或恶意中转可以把执行类指令悄悄塞进
+> 模型回复里。Claude Code / Codex / Aider 这类 agent 看到"按这个跑一下就好"
+> 会顺手执行——用户的机器就被拿下了。我们用毫无信息量的 prompt（"12 × 7
+> 等于多少"）做探测，回复里出现的任何可执行指令、外发图片或隐藏字符都
+> 必然来自中转，而不是模型本身。
 
 最终分是已启用维度的加权平均；`online` 失败会直接短路为 `offline`。
 

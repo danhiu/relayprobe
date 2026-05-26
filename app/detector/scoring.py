@@ -3,14 +3,16 @@ from __future__ import annotations
 
 from app.detector.types import DimensionResult, Verdict
 
-# v0.1.1 weights (5 dimensions, after Kiro/Cursor wrapper findings).
-# Dimensions with status="skipped" drop out and the remainder is renormalized.
+# v0.2 weights (6 dimensions, after the 2026-Q2 relay-poisoning incidents
+# that pushed `injection_safety` into the core score). Skipped dimensions
+# drop out and the remainder is renormalized.
 V01_WEIGHTS: dict[str, float] = {
-    "online":               0.15,
-    "identity_consistency": 0.25,
-    "wrapper_detection":    0.20,
+    "online":               0.10,
+    "identity_consistency": 0.20,
+    "wrapper_detection":    0.15,
     "token_billing":        0.15,
-    "tool_use":             0.25,
+    "tool_use":             0.20,
+    "injection_safety":     0.20,
 }
 
 

